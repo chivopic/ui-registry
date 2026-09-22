@@ -4,9 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "pnpm registry:build && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "registry:build": "tsx scripts/build-registry.ts",
+    "registry:check": "tsx scripts/validate-registry.ts"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",

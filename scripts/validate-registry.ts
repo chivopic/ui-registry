@@ -1,9 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { registry, type RegistryItem } from "../registry/registry";
+import {
+  assertSafeRelativePath,
+  getRepoRoot,
+} from "../lib/registry-paths";
 
-const ROOT = path.resolve(__dirname, "..");
-const REGISTRY_ROOT = path.join(ROOT, "registry");
+const ROOT = getRepoRoot(path.resolve(__dirname, ".."));
 
 const SECRET_PATTERNS: RegExp[] = [
   /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
@@ -19,30 +22,6 @@ const ABSOLUTE_PATH_IN_CONTENT =
 function fail(message: string): never {
   console.error(`registry:check failed: ${message}`);
   process.exit(1);
-}
-
-function assertSafeRelativePath(filePath: string, itemName: string): string {
-  if (path.isAbsolute(filePath)) {
-    fail(`Item "${itemName}" has absolute path: ${filePath}`);
-  }
-  if (filePath.includes("..") || filePath.split(/[/\\]/).includes("..")) {
-    fail(`Item "${itemName}" path escapes registry via "..": ${filePath}`);
-  }
-  const normalized = path.normalize(filePath).replace(/\\/g, "/");
-  if (!normalized.startsWith("registry/")) {
-    fail(
-      `Item "${itemName}" path must stay under registry/: got ${filePath}`
-    );
-  }
-  const resolved = path.resolve(ROOT, normalized);
-  const registryResolved = path.resolve(REGISTRY_ROOT);
-  if (
-    resolved !== registryResolved &&
-    !resolved.startsWith(registryResolved + path.sep)
-  ) {
-    fail(`Item "${itemName}" resolved path escapes registry/: ${filePath}`);
-  }
-  return normalized;
 }
 
 function scanContent(content: string, label: string): void {
@@ -81,7 +60,12 @@ function validateItem(item: RegistryItem, seen: Set<string>): void {
   }
 
   for (const file of item.files) {
-    const safePath = assertSafeRelativePath(file.path, item.name);
+    let safePath: string;
+    try {
+      safePath = assertSafeRelativePath(file.path, item.name, ROOT);
+    } catch (err) {
+      fail(err instanceof Error ? err.message : String(err));
+    }
     const abs = path.join(ROOT, safePath);
     if (!fs.existsSync(abs)) {
       fail(`Item "${item.name}" missing file: ${file.path}`);

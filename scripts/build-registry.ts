@@ -1,38 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import { registry, type RegistryItem } from "../registry/registry";
+import {
+  assertSafeRelativePath,
+  getRepoRoot,
+} from "../lib/registry-paths";
 
-const ROOT = path.resolve(__dirname, "..");
-const REGISTRY_ROOT = path.join(ROOT, "registry");
+const ROOT = getRepoRoot(path.resolve(__dirname, ".."));
 const OUT_DIR = path.join(ROOT, "public", "r");
-
-function assertSafeRelativePath(filePath: string, itemName: string): string {
-  if (path.isAbsolute(filePath)) {
-    throw new Error(`Item "${itemName}" has absolute path: ${filePath}`);
-  }
-  if (filePath.includes("..") || filePath.split(/[/\\]/).includes("..")) {
-    throw new Error(
-      `Item "${itemName}" path escapes registry via "..": ${filePath}`
-    );
-  }
-  const normalized = path.normalize(filePath).replace(/\\/g, "/");
-  if (!normalized.startsWith("registry/")) {
-    throw new Error(
-      `Item "${itemName}" path must stay under registry/: got ${filePath}`
-    );
-  }
-  const resolved = path.resolve(ROOT, normalized);
-  const registryResolved = path.resolve(REGISTRY_ROOT);
-  if (
-    resolved !== registryResolved &&
-    !resolved.startsWith(registryResolved + path.sep)
-  ) {
-    throw new Error(
-      `Item "${itemName}" resolved path escapes registry/: ${filePath}`
-    );
-  }
-  return normalized;
-}
 
 interface RegistryJsonFile {
   path: string;
@@ -53,7 +28,7 @@ interface RegistryItemJson {
 
 function buildItem(item: RegistryItem): RegistryItemJson {
   const files: RegistryJsonFile[] = item.files.map((file) => {
-    const safePath = assertSafeRelativePath(file.path, item.name);
+    const safePath = assertSafeRelativePath(file.path, item.name, ROOT);
     const abs = path.join(ROOT, safePath);
     if (!fs.existsSync(abs)) {
       throw new Error(`Missing file for "${item.name}": ${file.path}`);
